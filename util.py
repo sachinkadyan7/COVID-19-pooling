@@ -11,7 +11,6 @@ def draw_samples(N, f):
 
 '''Assign the N infection samples labels in the range 0 .. B^D-1'''
 def assign_labels(N, B, D):
-
     # Randomly select N number of samples from the range of labels 0 .. B^D-1
     labels = random.sample(range(B ** D), N)
     return labels
@@ -19,7 +18,6 @@ def assign_labels(N, B, D):
 
 '''Calculate the various metrics associated with the infection samples pooling'''
 def calc_metrics(D, d, B, N):
-
     pool_labels = list(itertools.combinations(range(D), d))
     print("Pool labels ", len(pool_labels), [i for i in pool_labels])
 
@@ -28,7 +26,7 @@ def calc_metrics(D, d, B, N):
     print("L = Number of pools", number_of_pools)
 
     # Calculate S = size_of_each_pool
-    size_of_each_pool = N / number_of_pools
+    size_of_each_pool = N / B ** d
     print("S = Size of each pool", size_of_each_pool)
 
     # Calculate R = redundancy
