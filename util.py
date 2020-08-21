@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import itertools
+import json
 
 
 '''Create N population samples with infection rate f'''
@@ -32,3 +33,15 @@ def calc_metrics(D, d, B, N):
     # Calculate R = redundancy
     redundancy = len(pool_labels)
     print("R = Redundancy", redundancy)
+
+
+def calculate_stats(stats):
+    stats['accuracy'] = (stats['tp'] + stats['tn']) / (stats['tp']+stats['tn']+stats['fp']+stats['fn'])
+    return stats
+
+
+def write_json(dict_contents, filename):
+    json_dump = json.dumps(dict_contents)
+    f = open(filename, "w")
+    f.write(json_dump)
+    f.close()

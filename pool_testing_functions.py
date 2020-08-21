@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 
+from membership_matrix import MembershipMatrix
 
 """
 Creates a global membership matrix to denote membership of each sample in each pool.
@@ -17,7 +18,7 @@ Creates a global membership matrix to denote membership of each sample in each p
     num_pools_in_poolset = base ** d
     max_num_ind_i_pool = base ** (D-d)
 """
-def construct_membership_matrix(labels, D, d, base):
+def get_membership_matrix(labels, D, d, base):
     print("\nConstructing membership matrix")
 
     # Number of samples available to us
@@ -31,9 +32,21 @@ def construct_membership_matrix(labels, D, d, base):
     combinations_of_digit_places = itertools.combinations(range(D), d)
     print("combinations_of_digit_places", combinations_of_digit_places)
 
-    base_powers = base ** np.arange(d-1, -1, -1)
-    membership_matrix_global = None
+    membership_matrix_global, pool_selecting_digits_global = \
+        construct_membership_matrix(base,
+                                    combinations_of_digit_places,
+                                    d, labels,
+                                    num_pools_in_poolset,
+                                    num_samples)
 
+    print("\nmembership_matrix_global\n", membership_matrix_global)
+    return membership_matrix_global, pool_selecting_digits_global
+
+
+def construct_membership_matrix(base, combinations_of_digit_places, d, labels, num_pools_in_poolset, num_samples):
+    base_powers = base ** np.arange(d - 1, -1, -1)
+    membership_matrix_global = MembershipMatrix(num_samples)
+    pool_selecting_digits_global = []
     for psd in combinations_of_digit_places:
         print("\nPool selecting digits ", psd)
 
@@ -46,16 +59,30 @@ def construct_membership_matrix(labels, D, d, base):
         membership_matrix[range(labels.shape[0]), pool_numbers] = 1
         print("\nMembership matrix\n", membership_matrix)
 
-        if membership_matrix_global is None:
-            membership_matrix_global = membership_matrix
-        else:
-            membership_matrix_global = np.hstack((membership_matrix_global, membership_matrix))
-
-    print("\nmembership_matrix_global\n", membership_matrix_global)
-    return membership_matrix_global
+        membership_matrix_global.add_poolset(membership_matrix)
+        pool_selecting_digits_global.append(psd)
+    return membership_matrix_global, pool_selecting_digits_global
 
 
-def perform_testing_of_pools(infection_samples, membership_matrix_global):
-    result = np.dot(infection_samples, membership_matrix_global)
-    print("result", result)
-    return result
+def perform_testing_of_pools(infection_samples, membership_matrix_global, eps_fp, eps_fn):
+    result = membership_matrix_global.multiply(infection_samples)
+    thresholded_result = np.clip(result, 0, 1)
+    print("result", thresholded_result)
+
+    num_pools = thresholded_result.shape[0]
+    inverse_thresholded_result = np.logical_not(thresholded_result)
+    pools_plus_errors = thresholded_result
+
+    # False positives can happen with an error probability eps_fp
+    if eps_fp != 0.0:
+        pools_plus_errors = np.where(np.logical_and(thresholded_result == 0, np.random.random(num_pools) <= eps_fp),
+                                     inverse_thresholded_result, thresholded_result)
+        print("eps_fp", pools_plus_errors)
+    # False negatives can happen with an error probability eps_fn
+    if eps_fn != 0.0:
+        pools_plus_errors = np.where(np.logical_and(thresholded_result == 1, np.random.random(num_pools) <= eps_fn),
+                                     inverse_thresholded_result, pools_plus_errors)
+        print("eps_fn", pools_plus_errors)
+
+    print("resEps", pools_plus_errors)
+    return pools_plus_errors
