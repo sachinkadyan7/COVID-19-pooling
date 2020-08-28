@@ -102,7 +102,8 @@ def start(params):
         result = perform_testing_of_pools(infection_samples, membership_matrix_global, params["eps_fp"], params["eps_fn"])
 
         # Recover individual samples
-        solution, status = solve_mip(params["N"], membership_matrix_global.get_matrix(), result, result.shape[0])
+        solution, status = solve_mip(params["N"], membership_matrix_global.get_matrix(), result, result.shape[0],
+                                     params["eps_fp"], params["eps_fn"], params["f"])
 
         comparison_array = np.column_stack((infection_samples, solution, labels_in_digits))
         np.savetxt(os.path.join(directory, str(run)), comparison_array, fmt='%.18e %.18e %d %d %d %d')
