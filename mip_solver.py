@@ -25,7 +25,7 @@ def solve_mip(num_samples, membership_matrix, pool_result, num_pools, fpr, fnr, 
     Wx = - np.log(f/(1-f))          # Weight for all positives
     m.objective = minimize(xsum(pool_false_positives[i] for i in range(num_pools))*Wp
                            + xsum(pool_false_negatives[i] for i in range(num_pools))*Wn
-                           + xsum(x[i] for i in range(num_pools))*Wx)
+                           + xsum(x[i] for i in range(num_samples))*Wx)
 
     status = m.optimize()
     if status == OptimizationStatus.OPTIMAL:
