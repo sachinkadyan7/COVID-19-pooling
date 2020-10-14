@@ -4,6 +4,13 @@ from mip import *
 def solve_mip(num_samples, membership_matrix, pool_result, num_pools, fpr, fnr, f):
 
     print("Solving")
+    # Check inputs
+    assert f != 0, "Please input a non-zero infection rate."
+    if fpr == 0:
+        fpr = np.nextafter(0, 1)
+    if fnr == 0:
+        fnr = np.nextafter(0, 1)
+
     # Create model
     m = Model()
 
