@@ -1,9 +1,17 @@
+import numpy as np
 from mip import *
 
 
-def solve_mip(num_samples, membership_matrix, pool_result, num_pools, fpr, fnr, f):
+def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
+    """
+    :param membership_matrix: a numpy array, shape (num_pools * num_samples)
+    :param pool_result: a numpy array with num_pools entries
+    :param fpr: a float between 0 and 1 indicating false positive rate
+    :param fnr: a float between 0 and 1 indicating false negative rate
+    :param f: a float between 0 and 1 indicating population infection rate
+    :return:
+    """
 
-    print("Solving")
     # Check inputs
     assert f != 0, "Please input a non-zero infection rate."
     if fpr == 0:
@@ -11,20 +19,23 @@ def solve_mip(num_samples, membership_matrix, pool_result, num_pools, fpr, fnr, 
     if fnr == 0:
         fnr = np.nextafter(0, 1)
 
+    num_pools, num_samples = membership_matrix.shape
+    membership_matrix = membership_matrix.T
+
     # Create model
     m = Model()
 
     # Add variables
-    x = [ m.add_var(name=str(i), var_type=BINARY) for i in range(num_samples) ]
-    pool_false_positives = [ m.add_var(name=str(i+num_samples), var_type=BINARY) for i in range(num_pools) ]
-    pool_false_negatives = [ m.add_var(name=str(i+num_samples+num_pools), var_type=BINARY) for i in range(num_pools) ]
+    x = [m.add_var(name=str(i), var_type=BINARY) for i in range(num_samples)]
+    pool_false_positives = [m.add_var(name=str(i + num_samples), var_type=BINARY) for i in range(num_pools)]
+    pool_false_negatives = [m.add_var(name=str(i + num_samples+num_pools), var_type=BINARY) for i in range(num_pools)]
 
     # Add constraints
     for i in range(num_pools):
         if pool_result[i] == 0:
-            m += xsum(x * membership_matrix[:,i]) - pool_false_positives[i] == 0
+            m += xsum(x * membership_matrix[:, i]) - pool_false_positives[i] == 0
         elif pool_result[i] == 1:
-            m += xsum(x * membership_matrix[:,i]) + pool_false_negatives[i] >= 1
+            m += xsum(x * membership_matrix[:, i]) + pool_false_negatives[i] >= 1
 
     # Objective function
     Wp = - np.log(fpr/(1-fpr))      # Weight for false positives
@@ -35,6 +46,8 @@ def solve_mip(num_samples, membership_matrix, pool_result, num_pools, fpr, fnr, 
                            + xsum(x[i] for i in range(num_samples))*Wx)
 
     status = m.optimize()
+
+    """
     if status == OptimizationStatus.OPTIMAL:
         print('optimal solution: ')
     elif status == OptimizationStatus.FEASIBLE:
@@ -45,17 +58,21 @@ def solve_mip(num_samples, membership_matrix, pool_result, num_pools, fpr, fnr, 
         print('No feasible solution found', status)
     else:
         print('Infeasible, unbounded or error', status)
+    """
+
 
     solution = np.zeros(num_samples, dtype=bool)
     if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
         for v in m.vars:
             if abs(v.x) > 1e-6:
                 if int(v.name) < num_samples:
-                    print('{} : {}'.format(v.name, v.x))
+                    # print('{} : {}'.format(v.name, v.x))
                     solution[int(v.name)] = True
-                elif num_samples < int(v.name) < num_samples+num_pools:
-                    print('false_positive_pool {} : {}'.format(int(v.name)-num_samples, v.x))
+                elif num_samples < int(v.name) < num_samples + num_pools:
+                    ''
+                    # print('false_positive_pool {} : {}'.format(int(v.name) - num_samples, v.x))
                 else:
-                    print('false_negative_pool {} : {}'.format(int(v.name)-num_samples-num_pools, v.x))
+                    ''
+                    # print('false_negative_pool {} : {}'.format(int(v.name) - num_samples-num_pools, v.x))
 
     return solution, status
