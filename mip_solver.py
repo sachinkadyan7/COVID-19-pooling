@@ -20,7 +20,6 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
         fnr = np.nextafter(0, 1)
 
     num_pools, num_samples = membership_matrix.shape
-    membership_matrix = membership_matrix.T
 
     # Create model
     m = Model()
@@ -33,9 +32,9 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
     # Add constraints
     for i in range(num_pools):
         if pool_result[i] == 0:
-            m += xsum(x * membership_matrix[:, i]) - pool_false_positives[i] == 0
+            m += xsum(x * membership_matrix[i, :]) - pool_false_negatives[i] == 0
         elif pool_result[i] == 1:
-            m += xsum(x * membership_matrix[:, i]) + pool_false_negatives[i] >= 1
+            m += xsum(x * membership_matrix[i, :]) + pool_false_positives[i] >= 1
 
     # Objective function
     Wp = - np.log(fpr/(1-fpr))      # Weight for false positives
@@ -47,32 +46,18 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
 
     status = m.optimize()
 
-    """
-    if status == OptimizationStatus.OPTIMAL:
-        print('optimal solution: ')
-    elif status == OptimizationStatus.FEASIBLE:
-        print('feasible solution')
-    elif status == OptimizationStatus.NO_SOLUTION_FOUND:
-        print('No solution found yet')
-    elif status == OptimizationStatus.INFEASIBLE or status == OptimizationStatus.INT_INFEASIBLE:
-        print('No feasible solution found', status)
-    else:
-        print('Infeasible, unbounded or error', status)
-    """
+    recovered_x = np.zeros(num_samples, dtype=bool)
+    recovered_false_p = np.zeros(num_pools, dtype=bool)
+    recovered_false_n = np.zeros(num_pools, dtype=bool)
 
-
-    solution = np.zeros(num_samples, dtype=bool)
     if status == OptimizationStatus.OPTIMAL or status == OptimizationStatus.FEASIBLE:
         for v in m.vars:
             if abs(v.x) > 1e-6:
                 if int(v.name) < num_samples:
-                    # print('{} : {}'.format(v.name, v.x))
-                    solution[int(v.name)] = True
-                elif num_samples < int(v.name) < num_samples + num_pools:
-                    ''
-                    # print('false_positive_pool {} : {}'.format(int(v.name) - num_samples, v.x))
+                    recovered_x[int(v.name)] = 1
+                elif num_samples <= int(v.name) < num_samples + num_pools:
+                    recovered_false_p[int(v.name) - num_samples] = 1
                 else:
-                    ''
-                    # print('false_negative_pool {} : {}'.format(int(v.name) - num_samples-num_pools, v.x))
+                    recovered_false_n[int(v.name) - num_samples - num_pools] = 1
 
-    return solution, status
+    return recovered_x, recovered_false_p, recovered_false_n, status
