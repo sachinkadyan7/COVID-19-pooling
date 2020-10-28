@@ -45,3 +45,26 @@ def write_json(dict_contents, filename):
     f = open(filename, "w")
     f.write(json_dump)
     f.close()
+
+
+def simulate_x(num_samples, num_trials, f, filename):
+    """
+    Code to generate infection vector for testing.
+    :param num_samples: integer, number of samples.
+    :param num_trials: integer, number of trials.
+    :param f: population infection rate.
+    :param filename: filename, file can be found in ./tests/data/ folder.
+    :return: None, saves the vectors to a csv file.
+    """
+    rows = num_samples  # 384
+    cols = num_trials  # 100
+
+    xs = np.empty(shape=(num_samples, num_trials))
+
+    for r in range(rows):
+        for c in range(cols):
+            xs[r][c] = int(np.random.binomial(1, f, 1))  # binomial(n,p,trials)
+
+    print("On average, %.2f positives in each trail." % np.average(xs.sum(0)))
+    np.savetxt("./tests/data/" + filename, xs, delimiter=',')  # convert to csv
+    return xs
