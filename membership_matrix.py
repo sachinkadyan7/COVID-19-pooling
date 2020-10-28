@@ -23,3 +23,17 @@ class MembershipMatrix:
     def __str__(self):
         return self.membership_matrix.__str__()
 
+
+def generate_const_row_weight_random_M(shape, m):
+    """
+    :param shape: shape of the membership matrix, (num_pools, num_samples)
+    :param m: row weight of the membership matrix
+    :return: a randomly generated matrix with row weight m.
+    """
+    random_membership_matrix = np.zeros(shape)
+    num_pools, num_samples = random_membership_matrix.shape
+    for i in range(num_pools):
+        indices = np.random.choice(num_samples, m, replace=False)
+        for index in indices:
+            random_membership_matrix[i, index] = 1
+    return random_membership_matrix
