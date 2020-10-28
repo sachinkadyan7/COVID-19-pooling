@@ -32,34 +32,6 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
 
-def simulate_x(num_samples, num_trials, f, filename):
-    """
-    Code to generate infection vector for testing.
-    By Sunny.
-    :param num_samples: integer, number of samples.
-    :param num_trials: integer, number of trials.
-    :param f: population infection rate.
-    :param filename: filename, file can be found in ./tests/data/ folder.
-    :return: None, saves the vectors to a csv file.
-    """
-    rows = num_samples  # 384
-    cols = num_trials  # 100
-
-    xs = []
-    for row in range(rows):
-        xs += [[7] * cols]  # Weird initial number to make sure every cell gets touched by next loop
-
-    for r in range(rows):
-        for c in range(cols):
-            xs[r][c] = int(np.random.binomial(1, f, 1))  # binomial(n,p,trials)
-
-    final = np.array(xs)  # convert to numpy array (So it can be used as input to Sachin's solver)
-    print(final)
-    print(final.shape)
-    df = pd.DataFrame(final)  # convert to pandas dataframe
-    df.to_csv("./tests/data/" + filename)  # convert to csv
-
-
 def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, f, fpr, fnr, verbose=False):
     """
     Get ground truth from true_infection_vectors_file and attempt to recover the ground truth.
@@ -149,4 +121,4 @@ def test_random_M(m, k, n, T, num_trails, print_every=5):
     print("Average Accuracy: %.2f %%" % (average_errors / (n * T) * 100))
     print("======================")
 
-    return average_errors
+    return num_errors
