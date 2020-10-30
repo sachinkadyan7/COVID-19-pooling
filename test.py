@@ -1,6 +1,10 @@
 import numpy as np
+import json
 from mip_solver import solve_mip
 from membership_matrix import generate_const_row_weight_random_M
+
+fpr = 0  # TODO: add errors
+fnr = 0  # TODO: add errors
 
 
 def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=False):
@@ -43,32 +47,25 @@ def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, 
     :return:
     """
     xs = np.genfromtxt(true_infection_vectors_file, delimiter=',')
-    result = {"xs": xs}
 
     pool_results = np.sign(membership_matrix @ xs)
     recovered_xs, recovered_false_ps, recovered_false_ns = recover_pool_results(membership_matrix,
                                                                                 pool_results,
                                                                                 fpr, fnr, f, verbose)
 
-    result["recovered_xs"] = recovered_xs
-    result["recovered_false_ps"] = recovered_false_ps
-    result["recovered_false_ns"] = recovered_false_ns
-
-    if not verbose:
-        print("=========================")
-
     num_errors = (xs != recovered_xs).sum()
     num_fp = ((xs == 0) * (recovered_xs == 1)).sum()
     num_fn = ((xs == 1) * (recovered_xs == 0)).sum()
-    accuracy = (xs == recovered_xs).sum() / xs.size
 
-    result["num_errors"] = (xs != recovered_xs).sum()
+    result = {"num_errors": int(num_errors), "num_fp": int(num_fp), "num_fn": int(num_fn)}
 
     if not verbose:
+        accuracy = (xs == recovered_xs).sum() / xs.size
+        print("=========================")
         print("%s errors: %s false positive(s), %s false negative(s)" % (num_errors, num_fp, num_fn))
         print("accuracy: %.2f %%" % (accuracy * 100))
 
-    return result
+    return xs, recovered_xs, recovered_false_ps, recovered_false_ns, result
 
 
 def check_optimality(xs, recovered_xs, verbose=False):
@@ -91,7 +88,7 @@ def check_optimality(xs, recovered_xs, verbose=False):
             print("ILP solver fails to find the optimize the objective for trail %s" % trial)
 
 
-def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5):
+def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5, verbose=False):
     """
     Saves the number of errors to ./test/results/
     m: constant row weight
@@ -100,23 +97,30 @@ def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5):
     T: number of tests
     num_trails: test num_trails random membership matrices
     """
-    fpr, fnr, f = 0, 0, k / 384
+    f = k / 384
     file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
-    num_errors = []
+    results = []
+
+    outfile_name = COVID_dir + "/tests/results/m%s-k%s-n%s-T%s-numTrials%s.txt" % (m, k, n, T, num_trails)
+
     for i in range(num_trails):
         if i % print_every == 0:
             print("Starting trail %s" % i)
         matrix = generate_const_row_weight_random_M((T, n), m)
-        result = compare_truth_and_estimates(matrix, file, f, fpr, fnr, verbose=True)
-        num_errors.append(result['num_errors'])
-        check_optimality(result['xs'], result['recovered_xs'], verbose=True)
-    average_errors = np.average(num_errors)
+        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, file, f, fpr, fnr, verbose=True)
+        results.append(result)
+        check_optimality(xs, recovered_xs, verbose=True)
 
-    print("======================")
-    print("Below is the test result for constant row weight = %s, infection rate %s/384" % (m, k))
-    print("The result is based on %s simulations." % num_trails)
-    print("Average number of total errors: %s" % average_errors)
-    print("Average Accuracy: %.2f %%" % (average_errors / (n * T) * 100))
-    print("======================")
+    with open(outfile_name, 'w') as outfile:
+        json.dump(results, outfile)
 
-    np.savetxt(COVID_dir + "/tests/results/m%s-k%s-n%s-T%s.csv" % (m, k, n, T), num_errors, delimiter=',')
+    if not verbose:
+        num_errors = []
+        for result in results:
+            num_errors.append(result['num_errors'])
+        average_errors = np.average(num_errors)
+        print("======================")
+        print("Test result for constant row weight = %s, infection rate %s/384:" % (m, k))
+        print("(based on %s simulations)" % num_trails)
+        print("Average Accuracy: %.2f " % (1 - average_errors / (n * 100)))
+        print("======================")
