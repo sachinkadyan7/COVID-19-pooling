@@ -1,6 +1,5 @@
 import numpy as np
 from mip_solver import solve_mip
-import pandas as pd
 from membership_matrix import generate_const_row_weight_random_M
 
 
@@ -24,7 +23,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
         if trial % 10 == 0 and not verbose:
             print("Starting trail %s ..." % trial)
         pool_result = pool_results[:, trial]
-        recovered_x, recovered_false_p, recovered_false_n, status = solve_mip(membership_matrix, pool_result, fpr, fnr, f)
+        recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f)
         recovered_xs[:, trial] = recovered_x
         recovered_false_ps[:, trial] = recovered_false_p
         recovered_false_ns[:, trial] = recovered_false_n
@@ -46,7 +45,7 @@ def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, 
     xs = np.genfromtxt(true_infection_vectors_file, delimiter=',')
     result = {"xs": xs}
 
-    pool_results = np.sign(np.matmul(membership_matrix, xs))
+    pool_results = np.sign(membership_matrix @ xs)
     recovered_xs, recovered_false_ps, recovered_false_ns = recover_pool_results(membership_matrix,
                                                                                 pool_results,
                                                                                 fpr, fnr, f, verbose)
@@ -63,7 +62,7 @@ def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, 
     num_fn = ((xs == 1) * (recovered_xs == 0)).sum()
     accuracy = (xs == recovered_xs).sum() / xs.size
 
-    result["accuracy"] = accuracy
+    result["num_errors"] = (xs != recovered_xs).sum()
 
     if not verbose:
         print("%s errors: %s false positive(s), %s false negative(s)" % (num_errors, num_fp, num_fn))
@@ -92,24 +91,23 @@ def check_optimality(xs, recovered_xs, verbose=False):
             print("ILP solver fails to find the optimize the objective for trail %s" % trial)
 
 
-def test_random_M(m, k, n, T, num_trails, print_every=5):
+def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5):
     """
+    Saves the number of errors to ./test/results/
     m: constant row weight
     k: expected number of positives among 384 samples
     n: number of samples
     T: number of tests
     num_trails: test num_trails random membership matrices
-
-    returns: average accuracy
     """
     fpr, fnr, f = 0, 0, k / 384
-    file = '/Users/yiningliu/research/pooled-sampling/COVID-19-pooling/tests/data/x-f-%s-384.csv' % k
+    file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
     num_errors = []
     for i in range(num_trails):
         if i % print_every == 0:
             print("Starting trail %s" % i)
         matrix = generate_const_row_weight_random_M((T, n), m)
-        result = compare_truth_and_estimates(matrix, file, fpr, fnr, f, verbose=True)
+        result = compare_truth_and_estimates(matrix, file, f, fpr, fnr, verbose=True)
         num_errors.append(result['num_errors'])
         check_optimality(result['xs'], result['recovered_xs'], verbose=True)
     average_errors = np.average(num_errors)
@@ -121,4 +119,4 @@ def test_random_M(m, k, n, T, num_trails, print_every=5):
     print("Average Accuracy: %.2f %%" % (average_errors / (n * T) * 100))
     print("======================")
 
-    return num_errors
+    np.savetxt(COVID_dir + "/tests/results/m%s-k%s-n%s-T%s.csv" % (m, k, n, T), num_errors, delimiter=',')

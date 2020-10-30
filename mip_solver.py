@@ -1,5 +1,6 @@
 import numpy as np
 from mip import *
+import scipy.io
 
 
 def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
@@ -9,7 +10,7 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
     :param fpr: a float between 0 and 1 indicating false positive rate
     :param fnr: a float between 0 and 1 indicating false negative rate
     :param f: a float between 0 and 1 indicating population infection rate
-    :return:
+    :return: the recovered x, false_positives, false_negative
     """
 
     # Check inputs
@@ -60,4 +61,4 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
                 else:
                     recovered_false_n[int(v.name) - num_samples - num_pools] = 1
 
-    return recovered_x, recovered_false_p, recovered_false_n, status
+    return recovered_x, recovered_false_p, recovered_false_n
