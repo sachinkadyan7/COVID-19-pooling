@@ -21,7 +21,7 @@ for f in f_values:
         accuracy_values_B10.append(stats['accuracy'])
 
 plt.figure("Base = 8")
-plt.title('Performance vs f for base 8')
+plt.title('Base 8')
 plt.xscale('log')
 plt.xlabel('infection rate f')
 plt.ylabel('accuracy')
@@ -33,7 +33,7 @@ plt.plot(f_values, accuracy_values_B10, color='lightgray', label='Base 10')
 plt.legend()
 
 plt.figure("Base = 10")
-plt.title('Performance vs f for base 10')
+plt.title('Base 10')
 plt.xscale('log')
 plt.xlabel('infection rate f')
 plt.ylabel('accuracy')
