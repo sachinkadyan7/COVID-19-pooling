@@ -18,4 +18,19 @@ def H(p):
     :param p: Pr(X = 1)
     :return: entropy of X
     """
-    return -p * math.log(p) - (1 - p) * math.log(1 - p)
+    return -p * math.log(p, 2) - (1 - p) * math.log(1 - p, 2)
+
+
+def minT(f, n):
+    """
+    The minimum number of tests for n samples from infection rate f.
+    :param f: infection rate
+    :param n: number of samples
+    :return: the lower bound for the number of tests, based on Shannon's theorem.
+    """
+    return math.ceil(n * H(f))
+
+
+def entropy(pool_size, f):
+    p = (1 - f) ** pool_size
+    return H(p)
