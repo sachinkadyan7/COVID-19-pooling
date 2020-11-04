@@ -24,7 +24,7 @@ class MembershipMatrix:
         return self.membership_matrix.__str__()
 
 
-def generate_const_row_weight_random_M(shape, m):
+def generate_const_row_weight(shape, m):
     """
     :param shape: shape of the membership matrix, (num_pools, num_samples)
     :param m: row weight of the membership matrix
@@ -39,19 +39,19 @@ def generate_const_row_weight_random_M(shape, m):
     return random_membership_matrix
 
 
-def generate_doubly_regular_M(shape, m):
+def generate_doubly_regular(shape, m):
     """
     :param shape: shape of the membership matrix, (num_pools, num_samples)
     :param m: row weight of the membership matrix
-    :return: a randomly generated doubly regular matrix with row weight m.
+    :return: a randomly generated doubly regular matrix with row weight m (and nearly constant column weight).
     """
-    M = generate_const_row_weight_random_M(shape, m)
+    M = generate_const_row_weight(shape, m)
     column_sums = M.sum(0)
-    goal = M.sum() / shape[1]
+    goal = int(M.sum() / shape[1])
 
     assert goal >= 1, "Please input a row weight at least num_samples / num_pools."
 
-    excess_indices = np.where(column_sums > goal)[0].tolist()
+    excess_indices = np.argsort(column_sums).tolist()[::-1]  # this is the list of decreasing indices
     missing_indices = np.where(column_sums < goal)[0].tolist()
 
     while missing_indices != []:
