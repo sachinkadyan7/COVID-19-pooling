@@ -1,10 +1,14 @@
 import numpy as np
 import json
+import os
 from mip_solver import solve_mip
-from membership_matrix import generate_const_row_weight_random_M
+import matplotlib.pyplot as plt
+from optimal_sizes import optimal_pool_size, entropy
 
 fpr = 0  # TODO: add errors
 fnr = 0  # TODO: add errors
+
+PRINT_EVERY = 10
 
 
 def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=False):
@@ -24,7 +28,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
     recovered_false_ps = np.empty((num_pools, num_trials))
     recovered_false_ns = np.empty((num_pools, num_trials))
     for trial in range(num_trials):
-        if trial % 10 == 0 and not verbose:
+        if trial % PRINT_EVERY == 0 and not verbose:
             print("Starting trail %s ..." % trial)
         pool_result = pool_results[:, trial]
         recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f)
@@ -79,7 +83,7 @@ def check_optimality(xs, recovered_xs, verbose=False):
     :return:
     """
     _, num_trials = xs.shape
-    for trial in range(100):
+    for trial in range(num_trials):
         x, recovered_x = xs[:, trial], recovered_xs[:, trial]
         num_errors = (x != recovered_x).sum()
         if num_errors != 0 and not verbose:
@@ -88,26 +92,37 @@ def check_optimality(xs, recovered_xs, verbose=False):
             print("ILP solver fails to find the optimize the objective for trail %s" % trial)
 
 
-def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5, verbose=False):
+def test_random_M(m, k, n, T, num_random_matrices, COVID_dir, generate_matrix, print_every=5, verbose=False):
     """
     Saves the number of errors to ./test/results/
-    m: constant row weight
-    k: expected number of positives among 384 samples
-    n: number of samples
-    T: number of tests
-    num_trails: test num_trails random membership matrices
+    :param m: constant row weight
+    :param k: expected number of positives among 384 samples
+    :param n: number of samples
+    :param T: number of tests
+    :param num_random_matrices: test num_trails random membership matrices
+    :param COVID_dir: the path to 'COVID-19-pooling'
+    :param generate_matrix: generate a random matrix using either 'generate_const_row_weight'
+    or 'generate_doubly_regular'
     """
-    f = k / 384
-    file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
+    folder_names = {'generate_const_row_weight': 'const-row-weight', 'generate_doubly_regular': 'doubly-regular'}
+    folder_name = folder_names[generate_matrix.__name__]
+
+    if not os.path.exists(COVID_dir + "/tests/results/"):
+        os.makedirs(COVID_dir + "/tests/results/")
+    if not os.path.exists(COVID_dir + "/tests/results/%s/" % folder_name):
+        os.makedirs(COVID_dir + "/tests/results/%s/" % folder_name)
+
+    f = k / n
+    test_file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
     results = []
 
-    outfile_name = COVID_dir + "/tests/results/m%s-k%s-n%s-T%s-numTrials%s.txt" % (m, k, n, T, num_trails)
+    outfile_name = COVID_dir + "/tests/results/%s/m%s-k%s-n%s-T%s-numM%s.txt" % (folder_name, m, k, n, T, num_random_matrices)
 
-    for i in range(num_trails):
+    for i in range(num_random_matrices):
         if i % print_every == 0:
-            print("Starting trail %s" % i)
-        matrix = generate_const_row_weight_random_M((T, n), m)
-        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, file, f, fpr, fnr, verbose=True)
+            print("Starting matrix %s" % i)
+        matrix = generate_matrix((T, n), m)
+        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, test_file, f, fpr, fnr, verbose=True)
         results.append(result)
         check_optimality(xs, recovered_xs, verbose=True)
 
@@ -120,7 +135,69 @@ def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5, verbose=Fals
             num_errors.append(result['num_errors'])
         average_errors = np.average(num_errors)
         print("======================")
-        print("Test result for constant row weight = %s, infection rate %s/384:" % (m, k))
-        print("(based on %s simulations)" % num_trails)
+        print("Test result for constant row weight = %s, infection rate %s/%s:" % (m, k, n))
+        print("(based on %s membership matrices)" % num_random_matrices)
         print("Average Accuracy: %.2f " % (1 - average_errors / (n * 100)))
         print("======================")
+
+
+def plot_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrices, row_weights, error_type, savefig=False):
+    """
+    Make the plot for f = k/n.
+    :param COVID_dir: the pwd of "COVID-19-pooling" directory
+    :param results_dir: the pwd of results directory, for example set to COVID_dir + 'tests/results/doubly-regular' to
+    plot the accuracy for doubly regular membership matrices
+    :param n: number of samples
+    :param k: expected number of positives
+    :param T: number of tests
+    :param num_trials: number of infection vectors
+    :param num_random_matrices: number of random membership matrices
+    :param row_weights: row weight for the matrix
+    :param error_type: set to 'num_errors' for total errors (fp + fn); set to 'num_fp' for false positive plots;
+    set to 'num_fn' for false negative plots
+    :param savefig: set True to save the figures
+    :return: average_accuracy
+    """
+    xs = np.genfromtxt(COVID_dir + '/tests/data/x-f-%s-384.csv' % k, delimiter=',')
+    total_positives = xs.sum()
+    total_negatives = n * num_trials - total_positives
+
+    denominator = {'num_errors': n * num_trials, 'num_fp': total_negatives, 'num_fn': total_positives}
+
+    x = []
+    y = []
+    average_accuracy = []
+
+    for m in row_weights:
+        with open(results_dir + 'm%s-k%s-n%s-T%s-numTrials%s.txt' % (m, k, n, T, num_random_matrices)) as file:
+            data = json.load(file)
+            total_errors = 0
+            for result in data:
+                num_errors = result[error_type]
+                total_errors += num_errors
+                x.append(m)
+                y.append(1 - num_errors / denominator[error_type])
+        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_random_matrices))
+
+    plt.scatter(x, y)
+    plt.xlabel('row weights')
+    plt.ylabel('accuracy')
+    title = 'Scatter plot for accuracy (f = %s/384) based on % s' % (k, error_type)
+    plt.title(title)
+    plt.show()
+    if savefig:
+        plt.savefig(title)
+
+    plt.scatter(row_weights, average_accuracy)
+    title = 'Scatter plot for average accuracy (f = %s/384) based on %s' % (k, error_type)
+    plt.title(title)
+    plt.show()
+    if savefig:
+        plt.savefig(title)
+
+    if error_type == 'num_errors':
+        print("theoretical optimal pool size: %.3f" % optimal_pool_size(k / n, 0, 0))
+        optimal_size = row_weights[average_accuracy.index(np.max(average_accuracy))]
+        print("emperical optimal pool size: %s" % optimal_size)
+        print("entropy for the emperical optimal pool size: %.3f" % entropy(optimal_size, k / n))
+    return average_accuracy
