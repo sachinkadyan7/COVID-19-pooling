@@ -39,7 +39,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
 
-def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, f, fpr, fnr, verbose=False):
+def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, fpr, fnr, f, verbose=False):
     """
     Get ground truth from true_infection_vectors_file and attempt to recover the ground truth.
     :param membership_matrix: membership matrix used for recovery

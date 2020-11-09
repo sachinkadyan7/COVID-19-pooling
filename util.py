@@ -2,7 +2,7 @@ import numpy as np
 import random
 import itertools
 import json
-
+import os
 
 '''Create N population samples with infection rate f'''
 def draw_samples(N, f):
@@ -68,3 +68,16 @@ def simulate_x(num_samples, num_trials, f, filename):
     print("On average, %.2f positives in each trail." % np.average(xs.sum(0)))
     np.savetxt("./tests/data/" + filename, xs, delimiter=',')  # convert to csv
     return xs
+
+
+def simulate_results(xs_filename, fnr, fpr):
+    """
+    Simulate pooling results.
+    :param filename: filename for infection vector
+    :param fnr: false negative rate
+    :param fpr: false positive rate
+    :return: None, saves the vectors to a csv file.
+    """
+    test_dir = os.getcwd() + 'tests/data/'
+    xs = np.genfromtxt(test_dir + xs_filename, delimiter=',')
+    Mxs =
