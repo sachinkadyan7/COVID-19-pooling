@@ -47,7 +47,7 @@ def generate_doubly_regular(shape, m):
     """
     M = generate_const_row_weight(shape, m)
     column_sums = M.sum(0)
-    goal = int(M.sum() / shape[1])
+    goal = round(M.sum() / shape[1])
 
     assert goal >= 1, "Please input a row weight at least num_samples / num_pools."
 
