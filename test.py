@@ -4,9 +4,7 @@ import os
 from mip_solver import solve_mip
 import matplotlib.pyplot as plt
 from optimal_sizes import optimal_pool_size, entropy
-
-fpr = 0  # TODO: add errors
-fnr = 0  # TODO: add errors
+from util import check_inputs
 
 PRINT_EVERY = 10
 
@@ -39,7 +37,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
 
-def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, f, fpr, fnr, verbose=False):
+def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, fpr, fnr, f, verbose=False):
     """
     Get ground truth from true_infection_vectors_file and attempt to recover the ground truth.
     :param membership_matrix: membership matrix used for recovery
@@ -72,27 +70,33 @@ def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, 
     return xs, recovered_xs, recovered_false_ps, recovered_false_ns, result
 
 
-def check_optimality(xs, recovered_xs, verbose=False):
+def check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, fpr, fnr, f):
     """
-    TODO: This is only for noiseless data. For noisy measurement experiments, need to include  ||f|| and ||n|| in the
-    objective."
     Check whether the ILP solver finds an optimal solution.
     :param xs: true infection vectors
     :param recovered_xs: recovered infection vectors
     :param verbose: set verbose to True to surpress print statements
-    :return:
     """
+    fpr, fnr, f = check_inputs(fpr, fnr, f)
+
+    def objective(xs, fps, fns):
+        """We want to minimize this objective. """
+        Wp = - np.log(fpr / (1 - fpr))  # Weight for false positives
+        Wn = - np.log(fnr / (1 - fnr))  # Weight for false negatives
+        Wx = - np.log(f / (1 - f))  # Weight for all positives
+        return np.sum(xs) * Wx + np.sum(fps) * Wp + np.sum(fns) * Wn
+
     _, num_trials = xs.shape
     for trial in range(num_trials):
         x, recovered_x = xs[:, trial], recovered_xs[:, trial]
-        num_errors = (x != recovered_x).sum()
-        if num_errors != 0 and not verbose:
-            print("||x|| = %s >= ||recovered_x||? %s" % (sum(x), sum(x) >= sum(recovered_x)))
-        elif num_errors != 0 and sum(x) < sum(recovered_x):
+        num_errors = np.sum(x != recovered_x)
+        objective_true = objective(xs, fps, fns)
+        objective_recovered = objective(recovered_xs, recovered_fps, recovered_fns)
+        if num_errors != 0 and objective_true < objective_recovered:
             print("ILP solver fails to find the optimize the objective for trail %s" % trial)
 
 
-def test_random_M(m, k, n, T, num_random_matrices, COVID_dir, generate_matrix, print_every=5, verbose=False):
+def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate_matrix, print_every=5, verbose=False):
     """
     Saves the number of errors to ./test/results/
     :param m: constant row weight
@@ -122,9 +126,8 @@ def test_random_M(m, k, n, T, num_random_matrices, COVID_dir, generate_matrix, p
         if i % print_every == 0:
             print("Starting matrix %s" % i)
         matrix = generate_matrix((T, n), m)
-        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, test_file, f, fpr, fnr, verbose=True)
+        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, test_file, fpr, fnr, f, verbose=True)
         results.append(result)
-        check_optimality(xs, recovered_xs, verbose=True)
 
     with open(outfile_name, 'w') as outfile:
         json.dump(results, outfile)
