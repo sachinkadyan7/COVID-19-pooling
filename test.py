@@ -2,8 +2,6 @@ import numpy as np
 import json
 import os
 from mip_solver import solve_mip
-import matplotlib.pyplot as plt
-from optimal_sizes import optimal_pool_size, entropy
 from util import check_inputs
 
 PRINT_EVERY = 10
@@ -144,23 +142,7 @@ def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate
         print("======================")
 
 
-def plot_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrices, row_weights, error_type, savefig=False):
-    """
-    Make the plot for f = k/n.
-    :param COVID_dir: the pwd of "COVID-19-pooling" directory
-    :param results_dir: the pwd of results directory, for example set to COVID_dir + 'tests/results/doubly-regular' to
-    plot the accuracy for doubly regular membership matrices
-    :param n: number of samples
-    :param k: expected number of positives
-    :param T: number of tests
-    :param num_trials: number of infection vectors
-    :param num_random_matrices: number of random membership matrices
-    :param row_weights: row weight for the matrix
-    :param error_type: set to 'num_errors' for total errors (fp + fn); set to 'num_fp' for false positive plots;
-    set to 'num_fn' for false negative plots
-    :param savefig: set True to save the figures
-    :return: average_accuracy
-    """
+def get_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrices, row_weights, error_type):
     xs = np.genfromtxt(COVID_dir + '/tests/data/x-f-%s-384.csv' % k, delimiter=',')
     total_positives = xs.sum()
     total_negatives = n * num_trials - total_positives
@@ -182,25 +164,5 @@ def plot_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matric
                 y.append(1 - num_errors / denominator[error_type])
         average_accuracy.append(1 - total_errors / (denominator[error_type] * num_random_matrices))
 
-    plt.scatter(x, y)
-    plt.xlabel('row weights')
-    plt.ylabel('accuracy')
-    title = 'Scatter plot for accuracy (f = %s/384) based on % s' % (k, error_type)
-    plt.title(title)
-    plt.show()
-    if savefig:
-        plt.savefig(title)
+    return x, y, average_accuracy
 
-    plt.scatter(row_weights, average_accuracy)
-    title = 'Scatter plot for average accuracy (f = %s/384) based on %s' % (k, error_type)
-    plt.title(title)
-    plt.show()
-    if savefig:
-        plt.savefig(title)
-
-    if error_type == 'num_errors':
-        print("theoretical optimal pool size: %.3f" % optimal_pool_size(k / n, 0, 0))
-        optimal_size = row_weights[average_accuracy.index(np.max(average_accuracy))]
-        print("emperical optimal pool size: %s" % optimal_size)
-        print("entropy for the emperical optimal pool size: %.3f" % entropy(optimal_size, k / n))
-    return average_accuracy

@@ -61,19 +61,7 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
             recovered_false_p[i] = m.vars[i + num_samples].x
             recovered_false_n[i] = m.vars[i + num_samples + num_pools].x
 
+    assert np.sgn(membership_matrix @ recovered_x) + recovered_false_p - recovered_false_n == pool_result
+
     return recovered_x, recovered_false_p, recovered_false_n
-
-
-"""fpr, fnr, f = np.nextafter(0, 1), 0.4, 0.5
-Wx = - np.log(f / (1 - f))
-Wp = - np.log(fpr / (1 - fpr))  # Weight for false positives
-Wn = - np.log(fnr / (1 - fnr))  # Weight for false negatives
-M = np.array([[1, 1],
-              [0, 1]])
-x = np.array([[1], [0]])
-pool_result = np.array([[0], [0]])
-recovered_x, recovered_false_p, recovered_false_n = solve_mip(M, pool_result, fpr, fnr, f)
-obj = sum(recovered_x) * Wx + sum(recovered_false_p) * Wp + sum(recovered_false_n) * Wn
-print(recovered_x, recovered_false_p, recovered_false_n)
-print(obj <= Wx + Wn)"""
 
