@@ -1,4 +1,5 @@
 from mip import *
+from util import check_inputs
 
 
 def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
@@ -12,11 +13,7 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
     """
 
     # Check inputs
-    assert f != 0, "Please input a non-zero infection rate."
-    if fpr == 0:
-        fpr = np.nextafter(0, 1)
-    if fnr == 0:
-        fnr = np.nextafter(0, 1)
+    fpr, fnr, f = check_inputs(fpr, fnr, f)
 
     num_pools, num_samples = membership_matrix.shape
 
@@ -63,14 +60,6 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
         for i in range(num_pools):
             recovered_false_p[i] = m.vars[i + num_samples].x
             recovered_false_n[i] = m.vars[i + num_samples + num_pools].x
-        """for v in m.vars:
-            if abs(v.x) > 1e-6 and v.name != 0:
-                if int(v.name) < num_samples:
-                    recovered_x[int(v.name)] = 1
-                elif num_samples <= int(v.name) < num_samples + num_pools:
-                    recovered_false_p[int(v.name) - num_samples] = 1
-                else:
-                    recovered_false_n[int(v.name) - num_samples - num_pools] = 1"""
 
     return recovered_x, recovered_false_p, recovered_false_n
 

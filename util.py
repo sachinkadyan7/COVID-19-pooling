@@ -47,6 +47,15 @@ def write_json(dict_contents, filename):
     f.close()
 
 
+def check_inputs(fpr, fnr, f):
+    assert f != 0, "Please input a non-zero infection rate."
+    if fpr == 0:
+        fpr = np.nextafter(0, 1)
+    if fnr == 0:
+        fnr = np.nextafter(0, 1)
+    return fpr, fnr, f
+
+
 def simulate_x(num_samples, num_trials, f, filename):
     """
     Code to generate infection vector for testing.
@@ -70,14 +79,28 @@ def simulate_x(num_samples, num_trials, f, filename):
     return xs
 
 
-def simulate_results(xs_filename, fnr, fpr):
-    """
-    Simulate pooling results.
-    :param filename: filename for infection vector
-    :param fnr: false negative rate
-    :param fpr: false positive rate
-    :return: None, saves the vectors to a csv file.
-    """
-    test_dir = os.getcwd() + 'tests/data/'
-    xs = np.genfromtxt(test_dir + xs_filename, delimiter=',')
-    Mxs =
+def simulate_pool_results(xs, membership_matrix, fpr, fnr):
+    num_pools, num_samples = membership_matrix.shape
+    _, num_trials = xs.shape
+
+    sgn_Mxs = np.sign(membership_matrix @ xs)
+    pool_results = np.zeros(sgn_Mxs.shape)
+    fps = np.zeros(sgn_Mxs.shape)  # false positives
+    fns = np.zeros(sgn_Mxs.shape)  # false negatives
+
+    for j in range(num_trials):
+        for i in range(num_pools):
+            r = random.uniform(0, 1)
+            if sgn_Mxs[i, j] == 0 and r < fpr:
+                pool_results[i, j] = 1
+                fps[i, j] = 1
+            elif sgn_Mxs[i, j] == 1 and r < fnr:
+                pool_results[i, j] = 0
+                fns[i, j] = 1
+            else:
+                pool_results[i, j] = sgn_Mxs[i, j]
+
+    assert np.all(pool_results == sgn_Mxs + fps - fns)
+
+    return pool_results, fps, fns
+
