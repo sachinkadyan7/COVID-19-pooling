@@ -1,10 +1,10 @@
 import numpy as np
 import json
+import os
 from mip_solver import solve_mip
-from membership_matrix import generate_const_row_weight_random_M
+from util import check_inputs
 
-fpr = 0  # TODO: add errors
-fnr = 0  # TODO: add errors
+PRINT_EVERY = 10
 
 
 def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=False):
@@ -24,7 +24,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
     recovered_false_ps = np.empty((num_pools, num_trials))
     recovered_false_ns = np.empty((num_pools, num_trials))
     for trial in range(num_trials):
-        if trial % 10 == 0 and not verbose:
+        if trial % PRINT_EVERY == 0 and not verbose:
             print("Starting trail %s ..." % trial)
         pool_result = pool_results[:, trial]
         recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f)
@@ -35,7 +35,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, verbose=F
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
 
-def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, f, fpr, fnr, verbose=False):
+def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, fpr, fnr, f, verbose=False):
     """
     Get ground truth from true_infection_vectors_file and attempt to recover the ground truth.
     :param membership_matrix: membership matrix used for recovery
@@ -68,48 +68,64 @@ def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, 
     return xs, recovered_xs, recovered_false_ps, recovered_false_ns, result
 
 
-def check_optimality(xs, recovered_xs, verbose=False):
+def check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, fpr, fnr, f):
     """
-    TODO: This is only for noiseless data. For noisy measurement experiments, need to include  ||f|| and ||n|| in the
-    objective."
     Check whether the ILP solver finds an optimal solution.
     :param xs: true infection vectors
     :param recovered_xs: recovered infection vectors
     :param verbose: set verbose to True to surpress print statements
-    :return:
     """
+    fpr, fnr, f = check_inputs(fpr, fnr, f)
+
+    def objective(xs, fps, fns):
+        """We want to minimize this objective. """
+        Wp = - np.log(fpr / (1 - fpr))  # Weight for false positives
+        Wn = - np.log(fnr / (1 - fnr))  # Weight for false negatives
+        Wx = - np.log(f / (1 - f))  # Weight for all positives
+        return np.sum(xs) * Wx + np.sum(fps) * Wp + np.sum(fns) * Wn
+
     _, num_trials = xs.shape
-    for trial in range(100):
+    for trial in range(num_trials):
         x, recovered_x = xs[:, trial], recovered_xs[:, trial]
-        num_errors = (x != recovered_x).sum()
-        if num_errors != 0 and not verbose:
-            print("||x|| = %s >= ||recovered_x||? %s" % (sum(x), sum(x) >= sum(recovered_x)))
-        elif num_errors != 0 and sum(x) < sum(recovered_x):
+        num_errors = np.sum(x != recovered_x)
+        objective_true = objective(xs, fps, fns)
+        objective_recovered = objective(recovered_xs, recovered_fps, recovered_fns)
+        if num_errors != 0 and objective_true < objective_recovered:
             print("ILP solver fails to find the optimize the objective for trail %s" % trial)
 
 
-def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5, verbose=False):
+def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate_matrix, print_every=5, verbose=False):
     """
     Saves the number of errors to ./test/results/
-    m: constant row weight
-    k: expected number of positives among 384 samples
-    n: number of samples
-    T: number of tests
-    num_trails: test num_trails random membership matrices
+    :param m: constant row weight
+    :param k: expected number of positives among 384 samples
+    :param n: number of samples
+    :param T: number of tests
+    :param num_random_matrices: test num_trails random membership matrices
+    :param COVID_dir: the path to 'COVID-19-pooling'
+    :param generate_matrix: generate a random matrix using either 'generate_const_row_weight'
+    or 'generate_doubly_regular'
     """
-    f = k / 384
-    file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
+    folder_names = {'generate_const_row_weight': 'const-row-weight', 'generate_doubly_regular': 'doubly-regular'}
+    folder_name = folder_names[generate_matrix.__name__]
+
+    if not os.path.exists(COVID_dir + "/tests/results/"):
+        os.makedirs(COVID_dir + "/tests/results/")
+    if not os.path.exists(COVID_dir + "/tests/results/%s/" % folder_name):
+        os.makedirs(COVID_dir + "/tests/results/%s/" % folder_name)
+
+    f = k / n
+    test_file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
     results = []
 
-    outfile_name = COVID_dir + "/tests/results/m%s-k%s-n%s-T%s-numTrials%s.txt" % (m, k, n, T, num_trails)
+    outfile_name = COVID_dir + "/tests/results/%s/m%s-k%s-n%s-T%s-numM%s.txt" % (folder_name, m, k, n, T, num_random_matrices)
 
-    for i in range(num_trails):
+    for i in range(num_random_matrices):
         if i % print_every == 0:
-            print("Starting trail %s" % i)
-        matrix = generate_const_row_weight_random_M((T, n), m)
-        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, file, f, fpr, fnr, verbose=True)
+            print("Starting matrix %s" % i)
+        matrix = generate_matrix((T, n), m)
+        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, test_file, fpr, fnr, f, verbose=True)
         results.append(result)
-        check_optimality(xs, recovered_xs, verbose=True)
 
     with open(outfile_name, 'w') as outfile:
         json.dump(results, outfile)
@@ -120,7 +136,33 @@ def test_random_M(m, k, n, T, num_trails, COVID_dir, print_every=5, verbose=Fals
             num_errors.append(result['num_errors'])
         average_errors = np.average(num_errors)
         print("======================")
-        print("Test result for constant row weight = %s, infection rate %s/384:" % (m, k))
-        print("(based on %s simulations)" % num_trails)
+        print("Test result for constant row weight = %s, infection rate %s/%s:" % (m, k, n))
+        print("(based on %s membership matrices)" % num_random_matrices)
         print("Average Accuracy: %.2f " % (1 - average_errors / (n * 100)))
         print("======================")
+
+
+def get_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrices, row_weights, error_type):
+    xs = np.genfromtxt(COVID_dir + '/tests/data/x-f-%s-384.csv' % k, delimiter=',')
+    total_positives = xs.sum()
+    total_negatives = n * num_trials - total_positives
+
+    denominator = {'num_errors': n * num_trials, 'num_fp': total_negatives, 'num_fn': total_positives}
+
+    x = []
+    y = []
+    average_accuracy = []
+
+    for m in row_weights:
+        with open(results_dir + 'm%s-k%s-n%s-T%s-numTrials%s.txt' % (m, k, n, T, num_random_matrices)) as file:
+            data = json.load(file)
+            total_errors = 0
+            for result in data:
+                num_errors = result[error_type]
+                total_errors += num_errors
+                x.append(m)
+                y.append(1 - num_errors / denominator[error_type])
+        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_random_matrices))
+
+    return x, y, average_accuracy
+
