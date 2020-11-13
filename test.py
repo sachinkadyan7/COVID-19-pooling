@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import os
+import multiprocessing as mp
 from mip_solver import solve_mip
 from util import check_inputs
 
@@ -116,16 +117,19 @@ def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate
 
     f = k / n
     test_file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
-    results = []
+    results_async = [None]*num_random_matrices
 
     outfile_name = COVID_dir + "/tests/results/%s/m%s-k%s-n%s-T%s-numM%s.txt" % (folder_name, m, k, n, T, num_random_matrices)
 
+    multiproc_pool = mp.Pool(mp.cpu_count())  # Or put mp.Pool(3) here if you want to use 3 CPU cores.
     for i in range(num_random_matrices):
         if i % print_every == 0:
             print("Starting matrix %s" % i)
-        matrix = generate_matrix((T, n), m)
-        xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, test_file, fpr, fnr, f, verbose=True)
-        results.append(result)
+        results_async[i] = multiproc_pool.apply_async(test_random_matrix, args=(T, f, fnr, fpr, generate_matrix, m, n, test_file))
+
+    results = [r.get() for r in results_async]
+    multiproc_pool.close()
+    multiproc_pool.join()
 
     with open(outfile_name, 'w') as outfile:
         json.dump(results, outfile)
@@ -140,6 +144,14 @@ def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate
         print("(based on %s membership matrices)" % num_random_matrices)
         print("Average Accuracy: %.2f " % (1 - average_errors / (n * 100)))
         print("======================")
+
+
+def test_random_matrix(T, f, fnr, fpr, generate_matrix, m, n, test_file):
+    matrix = generate_matrix((T, n), m)
+    xs, recovered_xs, recovered_false_ps, recovered_false_ns, result = compare_truth_and_estimates(matrix, test_file,
+                                                                                                   fpr, fnr, f,
+                                                                                                   verbose=True)
+    return result
 
 
 def get_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrices, row_weights, error_type):
