@@ -1,7 +1,5 @@
 from mip import *
 from util import check_inputs
-import scipy.io
-from numpy import genfromtxt
 
 
 def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
@@ -27,19 +25,17 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
     pool_false_positives = [m.add_var(name=str(i + num_samples), var_type=BINARY) for i in range(num_pools)]
     pool_false_negatives = [m.add_var(name=str(i + num_samples+num_pools), var_type=BINARY) for i in range(num_pools)]
 
-    pool_fn_prime = [m.add_var(var_type=INTEGER, lb=0) for _ in range(num_pools)]
     b = [m.add_var(var_type=BINARY) for _ in range(num_pools)]
 
     # Add constraints
     for i in range(num_pools):
         if pool_result[i] == 0:
-            m += pool_fn_prime[i] - 0.5 + 0.5 * b[i] >= 0
-            m += pool_fn_prime[i] - 0.5 + num_pools * (b[i] - 1) <= 0
+            m += xsum(x * membership_matrix[i, :]) - 0.5 + 0.5 * b[i] >= 0
+            m += xsum(x * membership_matrix[i, :]) - 0.5  - num_pools * (1 - b[i]) <= 0
             m += pool_false_negatives[i] == 1 - b[i]
-
-            m += xsum(x * membership_matrix[i, :]) - pool_fn_prime[i] == 0
         elif pool_result[i] == 1:
-            m += xsum(x * membership_matrix[i, :]) + pool_false_positives[i] >= 1
+            m += xsum(x * membership_matrix[i, :]) + 0.5 * pool_false_positives[i] - 0.5 >= 0
+            m += xsum(x * membership_matrix[i, :]) - num_pools * (1 - pool_false_positives[i]) -0.5 <= 0
 
     # Objective function
     Wp = - np.log(fpr/(1-fpr))      # Weight for false positives
@@ -66,13 +62,3 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
     assert np.all(np.sign(membership_matrix @ recovered_x) + recovered_false_p - recovered_false_n == pool_result)
 
     return recovered_x, recovered_false_p, recovered_false_n
-
-
-matrix_file = scipy.io.loadmat('/Users/yiningliu/research/pooled-sampling/COVID-19-pooling/tests/data/shental-poolingMatrix.mat')
-membership_matrix = matrix_file['poolingMatrix']
-true_infection_vectors_file = '/Users/yiningliu/research/pooled-sampling/COVID-19-pooling/tests/data/x-f-1-384.csv'
-xs = genfromtxt(true_infection_vectors_file, delimiter=',')
-x = xs[:, 0]
-pool_result = np.sign(membership_matrix @ x)
-
-solve_mip(membership_matrix, pool_result, 0, 0, 1/384)
