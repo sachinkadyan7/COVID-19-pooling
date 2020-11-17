@@ -39,7 +39,22 @@ def generate_const_row_weight(shape, m):
     return random_membership_matrix
 
 
-def generate_doubly_regular(shape, m):
+def generate_const_col_weight(shape, m):
+    """
+    :param shape: shape of the membership matrix, (num_pools, num_samples)
+    :param m: column weight of the membership matrix
+    :return: a randomly generated matrix with column weight m.
+    """
+    random_membership_matrix = np.zeros(shape)
+    num_pools, num_samples = random_membership_matrix.shape
+    for i in range(num_samples):
+        indices = np.random.choice(num_pools, m, replace=False)
+        for index in indices:
+            random_membership_matrix[index, i] = 1
+    return random_membership_matrix
+
+
+def generate_doubly_regular_row(shape, m):
     """
     :param shape: shape of the membership matrix, (num_pools, num_samples)
     :param m: row weight of the membership matrix
@@ -70,3 +85,35 @@ def generate_doubly_regular(shape, m):
         missing_indices.remove(missing_index)
 
     return M
+
+
+def generate_doubly_regular_col(shape, m):
+    """
+    :param shape: shape of the membership matrix, (num_pools, num_samples)
+    :param m: column weight of the membership matrix
+    :return: a randomly generated doubly regular matrix with column weight m (and nearly constant row weight).
+    """
+    M = generate_const_col_weight(shape, m)
+    row_sums = M.sum(1)
+    goal = round(M.sum() / shape[0])
+
+    excess_indices = np.argsort(row_sums).tolist()[::-1]  # this is the list of decreasing indices
+    missing_indices = np.where(row_sums < goal)[0].tolist()
+
+    while missing_indices != []:
+        missing_index = missing_indices[0]
+        missing_row = M[missing_index, :]
+        counter = goal - missing_row.sum()
+        while counter != 0:
+            excess_index = excess_indices[0]
+            excess_row = M[excess_index, :]
+            swap_col_index = (set(np.where(excess_row)[0]) - set(np.where(missing_row)[0])).pop()
+            M[excess_index, swap_col_index] = 0
+            M[missing_index, swap_col_index] = 1
+            if sum(M[excess_index, :]) == goal:
+                excess_indices.remove(excess_index)
+            counter = counter - 1
+        missing_indices.remove(missing_index)
+    
+    return M
+

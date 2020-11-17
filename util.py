@@ -2,7 +2,6 @@ import numpy as np
 import random
 import itertools
 import json
-import os
 
 '''Create N population samples with infection rate f'''
 def draw_samples(N, f):
