@@ -1,12 +1,12 @@
 import numpy as np
 import json
-import os
 from mip_solver import solve_mip
 from util import check_inputs, simulate_pool_results
+from membership_matrix import generate_doubly_regular_col
 import scipy.io
+import os
 
-
-def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, print_every=10):
+def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f):
     """
     :param membership_matrix: a numpy array, shape (num_pools * num_samples)
     :param pool_results: a numpy array, shape (num_pools * num_trials)
@@ -23,8 +23,6 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, print_eve
     recovered_false_ps = np.empty((num_pools, num_trials))
     recovered_false_ns = np.empty((num_pools, num_trials))
     for trial in range(num_trials):
-        if trial % print_every == 0:
-            print("Starting trail %s ..." % trial)
         pool_result = pool_results[:, trial]
         recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f)
         recovered_xs[:, trial] = recovered_x
@@ -34,7 +32,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, print_eve
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
 
-def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, fpr, fnr, f):
+def compare_truth_and_estimates(membership_matrix, xs_file, fpr, fnr, f):
     """
     Get ground truth from true_infection_vectors_file and attempt to recover the ground truth.
     :param membership_matrix: membership matrix used for recovery
@@ -45,7 +43,7 @@ def compare_truth_and_estimates(membership_matrix, true_infection_vectors_file, 
     :param verbose: set verbose to True to surpress print statement
     :return:
     """
-    xs = np.genfromtxt(true_infection_vectors_file, delimiter=',')
+    xs = np.genfromtxt(xs_file, delimiter=',')
     pool_results, fps, fns = simulate_pool_results(xs, membership_matrix, fpr, fnr)
 
     recovered_xs, recovered_fps, recovered_fns = recover_pool_results(membership_matrix,
@@ -89,10 +87,13 @@ def check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, f
         objective_true = objective(xs, fps, fns)
         objective_recovered = objective(recovered_xs, recovered_fps, recovered_fns)
         if num_errors != 0 and objective_true < objective_recovered:
-            print("ILP solver fails to find the optimal the objective for trail %s" % trial)
+            with open('optimality.txt', 'w') as file:
+                file.write("ILP solver fails to find the optimal the objective for trail %s of f = %s \n" % (trial, f))
+                file.write("x = %s \n" % list(x))
+                file.write("recovered_x = %s \n \n \n" % list(recovered_x))
 
 
-def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate_matrix, print_every=5):
+def test_M(m, n, T, f, fpr, fnr, num_trials=100, test_file=None, generate_matrix=generate_doubly_regular_col, num_M=25, print_every=1):
     """
     Saves the number of errors to ./test/results/
     :param m: constant row weight
@@ -106,20 +107,21 @@ def test_random_M(m, k, n, T, fpr, fnr, num_random_matrices, COVID_dir, generate
     """
     folder_name = generate_matrix.__name__
 
-    if not os.path.exists(COVID_dir + "/tests/results/"):
-        os.makedirs(COVID_dir + "/tests/results/")
-    if not os.path.exists(COVID_dir + "/tests/results/%s/" % folder_name):
-        os.makedirs(COVID_dir + "/tests/results/%s/" % folder_name)
+    if not os.path.exists("./results/"):
+        os.makedirs("./results/")
+    if not os.path.exists("./results/%s/" % folder_name):
+        os.makedirs("./results/%s/" % folder_name)
 
-    f = k / n
-    test_file = COVID_dir + '/tests/data/x-f-%s-384.csv' % k
     infos = []
+    if test_file is None: 
+      test_file = "./data/n%s-f%.4f-numTrials%s.csv" % (n, f, num_trials)
+    
+    outfile_name = "./results/%s/m%s-f%.4f-n%s-T%s-numM%s-numTrials%s.txt" % (folder_name, m, f, n, T,
+                                                                            num_M, num_trials)
 
-    outfile_name = COVID_dir + "/tests/results/%s/m%s-k%s-n%s-T%s-numM%s.txt" % (folder_name, m, k, n, T, num_random_matrices)
-
-    for i in range(num_random_matrices):
+    for i in range(num_M):
         if i % print_every == 0:
-            print("Starting matrix %s" % i)
+            print("Starting matrix %s/%s" % (i, num_M))
         matrix = generate_matrix((T, n), m)
         info = compare_truth_and_estimates(matrix, test_file, fpr, fnr, f)
         infos.append(info)
@@ -147,8 +149,11 @@ def get_num_errors(results_dir, n, k, T, num_random_matrices, weights, error_typ
     return x, y, average_num_errors
 
 
-def get_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrices, row_weights, error_type):
-    xs = np.genfromtxt(COVID_dir + '/tests/data/x-f-%s-384.csv' % k, delimiter=',')
+def get_accuracy_m(n, f, T, num_trials, num_M, weights, error_type, xs_file=None, results_folder='./results/generate_doubly_regular_col'):
+    if xs_file is None:
+        xs_file = './data/n%s-f%.4f-numTrials%s.csv' % (n, f, num_trials)
+    xs = np.genfromtxt(xs_file, delimiter=',')
+
     total_positives = xs.sum()
     total_negatives = n * num_trials - total_positives
 
@@ -158,8 +163,8 @@ def get_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrice
     y = []
     average_accuracy = []
 
-    for m in row_weights:
-        with open(results_dir + 'm%s-k%s-n%s-T%s-numM%s.txt' % (m, k, n, T, num_random_matrices)) as file:
+    for m in weights:
+        with open(results_folder + 'm%s-f%s-n%s-T%s-numM%s.txt' % (m, f, n, T, num_M)) as file:
             data = json.load(file)
             total_errors = 0
             for result in data:
@@ -167,19 +172,18 @@ def get_accuracy(COVID_dir, results_dir, n, k, T, num_trials, num_random_matrice
                 total_errors += num_errors
                 x.append(m)
                 y.append(1 - num_errors / denominator[error_type])
-        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_random_matrices))
+        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_M))
 
     return x, y, average_accuracy
 
 
-def test_shental(shental_matrix_filepath, k, fpr, fnr):
+def test_RS(k, fpr, fnr, num_trials):
     """
     this is the membership matrix by Shental et al.
     Download the file from https://github.com/NoamShental/PBEST/blob/master/mFiles/poolingMatrix.mat
     """
-    matrix_file = scipy.io.loadmat(shental_matrix_filepath)
+    matrix_file = scipy.io.loadmat('./data/poolingMatrix.mat')
     membership_matrix = matrix_file['poolingMatrix']
     f = k/384
-    file = os.getcwd() + '/data/x-f-%s-384.csv' % k
+    file = './data/n384-f%.4f-numTrials%s.csv' % (f, num_trials)
     return compare_truth_and_estimates(membership_matrix, file, fpr, fnr, f)
-

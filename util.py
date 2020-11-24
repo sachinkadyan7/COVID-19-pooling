@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import itertools
-import json
+import json, os
 
 '''Create N population samples with infection rate f'''
 def draw_samples(N, f):
@@ -55,7 +55,7 @@ def check_inputs(fpr, fnr, f):
     return fpr, fnr, f
 
 
-def simulate_x(num_samples, num_trials, f, filename):
+def simulate_x(num_samples, f, filename=None, num_trials=100):
     """
     Code to generate infection vector for testing.
     :param num_samples: integer, number of samples.
@@ -64,8 +64,14 @@ def simulate_x(num_samples, num_trials, f, filename):
     :param filename: filename, file can be found in ./tests/data/ folder.
     :return: None, saves the vectors to a csv file.
     """
-    rows = num_samples  # 384
-    cols = num_trials  # 100
+    if not os.path.exists("./data/"):
+        os.mkdir("/data")
+
+    rows = num_samples
+    cols = num_trials
+
+    if filename is None:
+        filename = "./data/n%s-f%.4f-numTrials%s.csv" % (num_samples, f, num_trials)
 
     xs = np.empty(shape=(num_samples, num_trials))
 
@@ -74,7 +80,7 @@ def simulate_x(num_samples, num_trials, f, filename):
             xs[r][c] = int(np.random.binomial(1, f, 1))  # binomial(n,p,trials)
 
     print("On average, %.2f positives in each trail." % np.average(xs.sum(0)))
-    np.savetxt("./tests/data/" + filename, xs, delimiter=',')  # convert to csv
+    np.savetxt(filename, xs, delimiter=',')  # convert to csv
     return xs
 
 
