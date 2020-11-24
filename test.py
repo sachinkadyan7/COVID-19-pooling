@@ -6,6 +6,7 @@ from membership_matrix import generate_doubly_regular_col
 import scipy.io
 import os
 
+
 def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f):
     """
     :param membership_matrix: a numpy array, shape (num_pools * num_samples)
@@ -149,7 +150,7 @@ def get_num_errors(results_dir, n, k, T, num_random_matrices, weights, error_typ
     return x, y, average_num_errors
 
 
-def get_accuracy_m(n, f, T, num_trials, num_M, weights, error_type, xs_file=None, results_folder='./results/generate_doubly_regular_col'):
+def get_accuracy_m(n, f, T, weights, error_type="num_errors", num_trials=100, num_M=25, xs_file=None, results_folder='./results/generate_doubly_regular_col/'):
     if xs_file is None:
         xs_file = './data/n%s-f%.4f-numTrials%s.csv' % (n, f, num_trials)
     xs = np.genfromtxt(xs_file, delimiter=',')
@@ -164,7 +165,7 @@ def get_accuracy_m(n, f, T, num_trials, num_M, weights, error_type, xs_file=None
     average_accuracy = []
 
     for m in weights:
-        with open(results_folder + 'm%s-f%s-n%s-T%s-numM%s.txt' % (m, f, n, T, num_M)) as file:
+        with open(results_folder + 'm%s-f%.4f-n%s-T%s-numM%s-numTrials%s.txt' % (m, f, n, T, num_M, num_trials)) as file:
             data = json.load(file)
             total_errors = 0
             for result in data:
@@ -177,13 +178,40 @@ def get_accuracy_m(n, f, T, num_trials, num_M, weights, error_type, xs_file=None
     return x, y, average_accuracy
 
 
-def test_RS(k, fpr, fnr, num_trials):
+def get_accuracy_T(n, f, m, Ts, error_type="num_errors", num_trials=100, num_M=25, xs_file=None, results_folder='./results/generate_doubly_regular_col/'):
+    if xs_file is None:
+        xs_file = './data/n%s-f%.4f-numTrials%s.csv' % (n, f, num_trials)
+    xs = np.genfromtxt(xs_file, delimiter=',')
+
+    total_positives = xs.sum()
+    total_negatives = n * num_trials - total_positives
+
+    denominator = {'num_errors': n * num_trials, 'num_fp': total_negatives, 'num_fn': total_positives}
+
+    x = []
+    y = []
+    average_accuracy = []
+
+    for T in Ts:
+        with open(results_folder + 'm%s-f%.4f-n%s-T%s-numM%s-numTrials%s.txt' % (m, f, n, T, num_M, num_trials))  as file:
+            data = json.load(file)
+            total_errors = 0
+            for result in data:
+                num_errors = result[error_type]
+                total_errors += num_errors
+                x.append(T)
+                y.append(1 - num_errors / denominator[error_type])
+        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_M))
+
+    return x, y, average_accuracy
+
+
+def test_RS(f, fpr=0, fnr=0, num_trials=100):
     """
     this is the membership matrix by Shental et al.
     Download the file from https://github.com/NoamShental/PBEST/blob/master/mFiles/poolingMatrix.mat
     """
     matrix_file = scipy.io.loadmat('./data/poolingMatrix.mat')
     membership_matrix = matrix_file['poolingMatrix']
-    f = k/384
     file = './data/n384-f%.4f-numTrials%s.csv' % (f, num_trials)
     return compare_truth_and_estimates(membership_matrix, file, fpr, fnr, f)

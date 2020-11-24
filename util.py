@@ -55,32 +55,32 @@ def check_inputs(fpr, fnr, f):
     return fpr, fnr, f
 
 
-def simulate_x(num_samples, f, filename=None, num_trials=100):
+def simulate_x(n, f, filepath=None, num_trials=100):
     """
     Code to generate infection vector for testing.
-    :param num_samples: integer, number of samples.
-    :param num_trials: integer, number of trials.
+    :param n: integer, number of samples.
     :param f: population infection rate.
-    :param filename: filename, file can be found in ./tests/data/ folder.
+    :param filepath: path of the simulated vector, default in '/data/' folder.
+    :param num_trials: integer, number of trials, default to 100 infection vectors.
     :return: None, saves the vectors to a csv file.
     """
     if not os.path.exists("./data/"):
-        os.mkdir("/data")
+        os.mkdir("./data/")
 
-    rows = num_samples
+    rows = n
     cols = num_trials
 
-    if filename is None:
-        filename = "./data/n%s-f%.4f-numTrials%s.csv" % (num_samples, f, num_trials)
+    if filepath is None:
+        filepath = "./data/n%s-f%.4f-numTrials%s.csv" % (n, f, num_trials)
 
-    xs = np.empty(shape=(num_samples, num_trials))
+    xs = np.empty(shape=(n, num_trials))
 
     for r in range(rows):
         for c in range(cols):
             xs[r][c] = int(np.random.binomial(1, f, 1))  # binomial(n,p,trials)
 
     print("On average, %.2f positives in each trail." % np.average(xs.sum(0)))
-    np.savetxt(filename, xs, delimiter=',')  # convert to csv
+    np.savetxt(filepath, xs, delimiter=',')  # convert to csv
     return xs
 
 
