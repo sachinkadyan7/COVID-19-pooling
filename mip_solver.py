@@ -2,7 +2,7 @@ from mip import *
 from util import check_inputs
 
 
-def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
+def solve_mip(membership_matrix, pool_result, fpr, fnr, f, test=False):
     """
     :param membership_matrix: a numpy array, shape (num_pools * num_samples)
     :param pool_result: a numpy array with num_pools entries
@@ -31,11 +31,11 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
     for i in range(num_pools):
         if pool_result[i] == 0:
             m += xsum(x * membership_matrix[i, :]) - 0.5 + 0.5 * b[i] >= 0
-            m += xsum(x * membership_matrix[i, :]) - 0.5  - num_pools * (1 - b[i]) <= 0
+            m += xsum(x * membership_matrix[i, :]) - 0.5 - num_pools * (1 - b[i]) <= 0
             m += pool_false_negatives[i] == 1 - b[i]
         elif pool_result[i] == 1:
             m += xsum(x * membership_matrix[i, :]) + 0.5 * pool_false_positives[i] - 0.5 >= 0
-            m += xsum(x * membership_matrix[i, :]) - num_pools * (1 - pool_false_positives[i]) -0.5 <= 0
+            m += xsum(x * membership_matrix[i, :]) - num_pools * (1 - pool_false_positives[i]) - 0.5 <= 0
 
     # Objective function
     Wp = - np.log(fpr/(1-fpr))      # Weight for false positives
@@ -46,7 +46,10 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f):
                            + xsum(pool_false_negatives[i] for i in range(num_pools))*Wn
                            + xsum(x[i] for i in range(num_samples))*Wx)
 
-    status = m.optimize()
+    if test:
+        status = m.optimize(max_seconds=60)
+    else:
+        status = m.optimize(max_seconds=600)
 
     recovered_x = np.zeros(num_samples, dtype=bool)
     recovered_false_p = np.zeros(num_pools, dtype=bool)

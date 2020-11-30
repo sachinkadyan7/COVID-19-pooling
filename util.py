@@ -55,7 +55,7 @@ def check_inputs(fpr, fnr, f):
     return fpr, fnr, f
 
 
-def simulate_x(n, f, filepath=None, num_trials=100):
+def simulate_x(n, f, num_trials=100, filepath=None):
     """
     Code to generate infection vector for testing.
     :param n: integer, number of samples.
@@ -81,7 +81,6 @@ def simulate_x(n, f, filepath=None, num_trials=100):
 
     print("On average, %.2f positives in each trail." % np.average(xs.sum(0)))
     np.savetxt(filepath, xs, delimiter=',')  # convert to csv
-    return xs
 
 
 def simulate_pool_results(xs, membership_matrix, fpr, fnr):

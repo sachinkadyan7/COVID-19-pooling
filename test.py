@@ -7,7 +7,7 @@ import scipy.io
 import os
 
 
-def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f):
+def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, test=False):
     """
     :param membership_matrix: a numpy array, shape (num_pools * num_samples)
     :param pool_results: a numpy array, shape (num_pools * num_trials)
@@ -24,8 +24,10 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f):
     recovered_false_ps = np.empty((num_pools, num_trials))
     recovered_false_ns = np.empty((num_pools, num_trials))
     for trial in range(num_trials):
+        if trial % 100 == 0:
+            print("Starting trial %s" % trial)
         pool_result = pool_results[:, trial]
-        recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f)
+        recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f, test)
         recovered_xs[:, trial] = recovered_x
         recovered_false_ps[:, trial] = recovered_false_p
         recovered_false_ns[:, trial] = recovered_false_n
@@ -33,7 +35,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f):
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
 
-def compare_truth_and_estimates(membership_matrix, xs_file, fpr, fnr, f):
+def compare_truth_and_estimates(membership_matrix, xs_file, f, fpr=0, fnr=0, saveM=True):
     """
     Get ground truth from true_infection_vectors_file and attempt to recover the ground truth.
     :param membership_matrix: membership matrix used for recovery
@@ -49,18 +51,20 @@ def compare_truth_and_estimates(membership_matrix, xs_file, fpr, fnr, f):
 
     recovered_xs, recovered_fps, recovered_fns = recover_pool_results(membership_matrix,
                                                                       pool_results,
-                                                                      fpr, fnr, f)
+                                                                      fpr, fnr, f, test=True)
 
     check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, fpr, fnr, f)
 
-    num_errors = (xs != recovered_xs).sum()
-    num_fp = ((xs == 0) * (recovered_xs == 1)).sum()
-    num_fn = ((xs == 1) * (recovered_xs == 0)).sum()
+    num_errors = (xs != recovered_xs).sum(0)
+    num_fp = ((xs == 0) * (recovered_xs == 1)).sum(0)
+    num_fn = ((xs == 1) * (recovered_xs == 0)).sum(0)
 
-    info = {"membership_matrix": membership_matrix.tolist(),
-            "num_errors": int(num_errors),
-            "num_fp": int(num_fp),
-            "num_fn": int(num_fn)}
+    info = {"num_errors": num_errors.tolist(),
+            "num_fp": num_fp.tolist(),
+            "num_fn": num_fn.tolist()}
+
+    if saveM:
+        info["membership_matrix"] = membership_matrix.tolist()
 
     return info
 
@@ -94,7 +98,7 @@ def check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, f
                 file.write("recovered_x = %s \n \n \n" % list(recovered_x))
 
 
-def test_M(m, n, T, f, fpr, fnr, num_trials=100, test_file=None, generate_matrix=generate_doubly_regular_col, num_M=25, print_every=1):
+def test_Ms(m, n, T, f, fpr, fnr, num_M=25, num_trials=100, test_file=None, generate_matrix=generate_doubly_regular_col, print_every=1):
     """
     Saves the number of errors to ./test/results/
     :param m: constant row weight
@@ -212,6 +216,10 @@ def test_RS(f, fpr=0, fnr=0, num_trials=100):
     Download the file from https://github.com/NoamShental/PBEST/blob/master/mFiles/poolingMatrix.mat
     """
     matrix_file = scipy.io.loadmat('./data/poolingMatrix.mat')
-    membership_matrix = matrix_file['poolingMatrix']
-    file = './data/n384-f%.4f-numTrials%s.csv' % (f, num_trials)
-    return compare_truth_and_estimates(membership_matrix, file, fpr, fnr, f)
+    M = matrix_file['poolingMatrix']
+    return test_M(M, f, fpr, fnr, num_trials)
+
+
+def test_M(M, f, fpr=0, fnr=0, num_trials=100):
+    xs_file = './data/n384-f%.4f-numTrials%s.csv' % (f, num_trials)
+    return compare_truth_and_estimates(M, xs_file, f, fpr, fnr, saveM=False)

@@ -62,7 +62,7 @@ def generate_doubly_regular_row(shape, m):
     """
     M = generate_const_row_weight(shape, m)
     column_sums = M.sum(0)
-    goal = round(M.sum() / shape[1])
+    goal = int(M.sum() / shape[1])
 
     assert goal >= 1, "Please input a row weight at least num_samples / num_pools."
 
@@ -95,7 +95,7 @@ def generate_doubly_regular_col(shape, m):
     """
     M = generate_const_col_weight(shape, m)
     row_sums = M.sum(1)
-    goal = round(M.sum() / shape[0])
+    goal = int(M.sum() / shape[0])
 
     excess_indices = np.argsort(row_sums).tolist()[::-1]  # this is the list of decreasing indices
     missing_indices = np.where(row_sums < goal)[0].tolist()
@@ -117,3 +117,8 @@ def generate_doubly_regular_col(shape, m):
     
     return M
 
+
+T = 48
+n = 384
+m = 22
+M = generate_doubly_regular_row((T, n), m)

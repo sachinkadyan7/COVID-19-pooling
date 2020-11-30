@@ -1,7 +1,7 @@
 import math
 
 
-def optimal_pool_size(f, fnr, fpr):
+def optimal_pool_size(f, fnr=0, fpr=0):
     """
     P(pool negative) = 0.5
     :param f: population infection rate
