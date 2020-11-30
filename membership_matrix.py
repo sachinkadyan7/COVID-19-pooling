@@ -45,13 +45,7 @@ def generate_const_col_weight(shape, m):
     :param m: column weight of the membership matrix
     :return: a randomly generated matrix with column weight m.
     """
-    random_membership_matrix = np.zeros(shape)
-    num_pools, num_samples = random_membership_matrix.shape
-    for i in range(num_samples):
-        indices = np.random.choice(num_pools, m, replace=False)
-        for index in indices:
-            random_membership_matrix[index, i] = 1
-    return random_membership_matrix
+    return generate_const_row_weight(shape[::-1], m).T
 
 
 def generate_doubly_regular_row(shape, m):
@@ -62,27 +56,27 @@ def generate_doubly_regular_row(shape, m):
     """
     M = generate_const_row_weight(shape, m)
     column_sums = M.sum(0)
-    goal = int(M.sum() / shape[1])
+    goal = round(M.sum() / shape[1])
 
     assert goal >= 1, "Please input a row weight at least num_samples / num_pools."
 
-    excess_indices = np.argsort(column_sums).tolist()[::-1]  # this is the list of decreasing indices
-    missing_indices = np.where(column_sums < goal)[0].tolist()
+    indices = np.argsort(column_sums).tolist()  # this is the list of increasing indices
 
-    while missing_indices != []:
-        missing_index = missing_indices[0]
+    while column_sums[indices[0]] < goal-1 or column_sums[indices[-1]] > goal+1:
+        missing_index = indices[0]
         missing_column = M[:, missing_index]
         counter = goal - missing_column.sum()
         while counter != 0:
-            excess_index = excess_indices[0]
+            excess_index = indices[-1]
             excess_column = M[:, excess_index]
-            swap_row_index = (set(np.where(excess_column)[0]) - set(np.where(missing_column)[0])).pop()
+            diff = set(np.where(excess_column)[0]) - set(np.where(missing_column)[0])
+            swap_row_index = diff.pop()
             M[swap_row_index, excess_index] = 0
             M[swap_row_index, missing_index] = 1
             if sum(M[:, excess_index]) == goal:
-                excess_indices.remove(excess_index)
+                indices.remove(excess_index)
             counter = counter - 1
-        missing_indices.remove(missing_index)
+        indices.remove(missing_index)
 
     return M
 
@@ -93,32 +87,4 @@ def generate_doubly_regular_col(shape, m):
     :param m: column weight of the membership matrix
     :return: a randomly generated doubly regular matrix with column weight m (and nearly constant row weight).
     """
-    M = generate_const_col_weight(shape, m)
-    row_sums = M.sum(1)
-    goal = int(M.sum() / shape[0])
-
-    excess_indices = np.argsort(row_sums).tolist()[::-1]  # this is the list of decreasing indices
-    missing_indices = np.where(row_sums < goal)[0].tolist()
-
-    while missing_indices != []:
-        missing_index = missing_indices[0]
-        missing_row = M[missing_index, :]
-        counter = goal - missing_row.sum()
-        while counter != 0:
-            excess_index = excess_indices[0]
-            excess_row = M[excess_index, :]
-            swap_col_index = (set(np.where(excess_row)[0]) - set(np.where(missing_row)[0])).pop()
-            M[excess_index, swap_col_index] = 0
-            M[missing_index, swap_col_index] = 1
-            if sum(M[excess_index, :]) == goal:
-                excess_indices.remove(excess_index)
-            counter = counter - 1
-        missing_indices.remove(missing_index)
-    
-    return M
-
-
-T = 48
-n = 384
-m = 22
-M = generate_doubly_regular_row((T, n), m)
+    return generate_doubly_regular_row(shape[::-1], m).T
