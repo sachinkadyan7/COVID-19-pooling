@@ -55,28 +55,31 @@ def generate_doubly_regular_row(shape, m):
     :return: a randomly generated doubly regular matrix with row weight m (and nearly constant column weight).
     """
     M = generate_const_row_weight(shape, m)
-    column_sums = M.sum(0)
     goal = round(M.sum() / shape[1])
 
     assert goal >= 1, "Please input a row weight at least num_samples / num_pools."
 
-    indices = np.argsort(column_sums).tolist()  # this is the list of increasing indices
+    indices = np.argsort(M.sum(0)).tolist()  # this is the list of increasing indices
 
-    while column_sums[indices[0]] < goal-1 or column_sums[indices[-1]] > goal+1:
+    stop = False
+
+    while not stop:
         missing_index = indices[0]
+        excess_index = indices[-1]
+
         missing_column = M[:, missing_index]
-        counter = goal - missing_column.sum()
-        while counter != 0:
-            excess_index = indices[-1]
-            excess_column = M[:, excess_index]
-            diff = set(np.where(excess_column)[0]) - set(np.where(missing_column)[0])
-            swap_row_index = diff.pop()
-            M[swap_row_index, excess_index] = 0
-            M[swap_row_index, missing_index] = 1
-            if sum(M[:, excess_index]) == goal:
-                indices.remove(excess_index)
-            counter = counter - 1
-        indices.remove(missing_index)
+        excess_column = M[:, excess_index]
+
+        diff = set(np.where(excess_column)[0]) - set(np.where(missing_column)[0])
+
+        swap_row_index = diff.pop()
+
+        M[swap_row_index, excess_index] = 0
+        M[swap_row_index, missing_index] = 1
+
+        indices = np.argsort(M.sum(0)).tolist()
+        stop = (M.sum(0)[indices[0]] >= goal - 1 and M.sum(0)[indices[-1]] == goal) or \
+               (M.sum(0)[indices[0]] == goal and M.sum(0)[indices[-1]] <= goal + 1)
 
     return M
 
