@@ -1,10 +1,7 @@
 import numpy as np
-import json
 from mip_solver import solve_mip
 from util import check_inputs, simulate_pool_results
-from membership_matrix import generate_doubly_regular_col
 import scipy.io
-import os
 
 
 def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, test=False):
@@ -24,13 +21,13 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, test=Fals
     recovered_false_ps = np.empty((num_pools, num_trials))
     recovered_false_ns = np.empty((num_pools, num_trials))
     for trial in range(num_trials):
-        if trial % 100 == 0:
-            print("Starting trial %s" % trial)
         pool_result = pool_results[:, trial]
         recovered_x, recovered_false_p, recovered_false_n = solve_mip(membership_matrix, pool_result, fpr, fnr, f, test)
         recovered_xs[:, trial] = recovered_x
         recovered_false_ps[:, trial] = recovered_false_p
         recovered_false_ns[:, trial] = recovered_false_n
+        if trial % 100 == 99:
+            print("Finished trial %s" % trial+1)
 
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
@@ -98,119 +95,7 @@ def check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, f
                 file.write("recovered_x = %s \n \n \n" % list(recovered_x))
 
 
-def test_Ms(m, n, T, f, fpr, fnr, num_M=25, num_trials=100, test_file=None, generate_matrix=generate_doubly_regular_col, print_every=1):
-    """
-    Saves the number of errors to ./test/results/
-    :param m: constant row weight
-    :param k: expected number of positives among 384 samples
-    :param n: number of samples
-    :param T: number of tests
-    :param num_random_matrices: test num_trails random membership matrices
-    :param COVID_dir: the path to 'COVID-19-pooling'
-    :param generate_matrix: generate a random matrix using either 'generate_const_col_weight'
-    or 'generate_doubly_regular_col'
-    """
-    folder_name = generate_matrix.__name__
-
-    if not os.path.exists("./results/"):
-        os.makedirs("./results/")
-    if not os.path.exists("./results/%s/" % folder_name):
-        os.makedirs("./results/%s/" % folder_name)
-
-    infos = []
-    if test_file is None: 
-      test_file = "./data/n%s-f%.4f-numTrials%s.csv" % (n, f, num_trials)
-    
-    outfile_name = "./results/%s/m%s-f%.4f-n%s-T%s-numM%s-numTrials%s.txt" % (folder_name, m, f, n, T,
-                                                                            num_M, num_trials)
-
-    for i in range(num_M):
-        if i % print_every == 0:
-            print("Starting matrix %s/%s" % (i, num_M))
-        matrix = generate_matrix((T, n), m)
-        info = compare_truth_and_estimates(matrix, test_file, fpr, fnr, f)
-        infos.append(info)
-
-    with open(outfile_name, 'w') as outfile:
-        json.dump(infos, outfile)
-
-
-def get_num_errors(results_dir, n, k, T, num_random_matrices, weights, error_type):
-    x = []
-    y = []
-    average_num_errors = []
-
-    for m in weights:
-        with open(results_dir + 'm%s-k%s-n%s-T%s-numM%s.txt' % (m, k, n, T, num_random_matrices)) as file:
-            data = json.load(file)
-            total_errors = 0
-            for result in data:
-                num_errors = result[error_type]
-                total_errors += num_errors
-                x.append(m)
-                y.append(num_errors)
-        average_num_errors.append(total_errors / num_random_matrices)
-
-    return x, y, average_num_errors
-
-
-def get_accuracy_m(n, f, T, weights, error_type="num_errors", num_trials=100, num_M=25, xs_file=None, results_folder='./results/generate_doubly_regular_col/'):
-    if xs_file is None:
-        xs_file = './data/n%s-f%.4f-numTrials%s.csv' % (n, f, num_trials)
-    xs = np.genfromtxt(xs_file, delimiter=',')
-
-    total_positives = xs.sum()
-    total_negatives = n * num_trials - total_positives
-
-    denominator = {'num_errors': n * num_trials, 'num_fp': total_negatives, 'num_fn': total_positives}
-
-    x = []
-    y = []
-    average_accuracy = []
-
-    for m in weights:
-        with open(results_folder + 'm%s-f%.4f-n%s-T%s-numM%s-numTrials%s.txt' % (m, f, n, T, num_M, num_trials)) as file:
-            data = json.load(file)
-            total_errors = 0
-            for result in data:
-                num_errors = result[error_type]
-                total_errors += num_errors
-                x.append(m)
-                y.append(1 - num_errors / denominator[error_type])
-        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_M))
-
-    return x, y, average_accuracy
-
-
-def get_accuracy_T(n, f, m, Ts, error_type="num_errors", num_trials=100, num_M=25, xs_file=None, results_folder='./results/generate_doubly_regular_col/'):
-    if xs_file is None:
-        xs_file = './data/n%s-f%.4f-numTrials%s.csv' % (n, f, num_trials)
-    xs = np.genfromtxt(xs_file, delimiter=',')
-
-    total_positives = xs.sum()
-    total_negatives = n * num_trials - total_positives
-
-    denominator = {'num_errors': n * num_trials, 'num_fp': total_negatives, 'num_fn': total_positives}
-
-    x = []
-    y = []
-    average_accuracy = []
-
-    for T in Ts:
-        with open(results_folder + 'm%s-f%.4f-n%s-T%s-numM%s-numTrials%s.txt' % (m, f, n, T, num_M, num_trials))  as file:
-            data = json.load(file)
-            total_errors = 0
-            for result in data:
-                num_errors = result[error_type]
-                total_errors += num_errors
-                x.append(T)
-                y.append(1 - num_errors / denominator[error_type])
-        average_accuracy.append(1 - total_errors / (denominator[error_type] * num_M))
-
-    return x, y, average_accuracy
-
-
-def test_RS(f, fpr=0, fnr=0, num_trials=100):
+def test_RS(f, num_trials, fpr=0, fnr=0):
     """
     this is the membership matrix by Shental et al.
     Download the file from https://github.com/NoamShental/PBEST/blob/master/mFiles/poolingMatrix.mat
@@ -220,6 +105,6 @@ def test_RS(f, fpr=0, fnr=0, num_trials=100):
     return test_M(M, f, fpr, fnr, num_trials)
 
 
-def test_M(M, f, fpr=0, fnr=0, num_trials=100):
+def test_M(M, f, fpr=0, fnr=0, num_trials=1000):
     xs_file = './data/n384-f%.4f-numTrials%s.csv' % (f, num_trials)
     return compare_truth_and_estimates(M, xs_file, f, fpr, fnr, saveM=False)
