@@ -27,7 +27,7 @@ def recover_pool_results(membership_matrix, pool_results, fpr, fnr, f, test=Fals
         recovered_false_ps[:, trial] = recovered_false_p
         recovered_false_ns[:, trial] = recovered_false_n
         if trial % 100 == 99:
-            print("Finished trial %s" % trial+1)
+            print("Finished trial %s" % (trial+1))
 
     return recovered_xs, recovered_false_ps, recovered_false_ns
 
@@ -40,10 +40,10 @@ def compare_truth_and_estimates(membership_matrix, xs_file, f, fpr=0, fnr=0, sav
     :param f: population infection rate
     :param fpr: false positive rate
     :param fnr: false negative rate
-    :param verbose: set verbose to True to surpress print statement
     :return:
     """
     xs = np.genfromtxt(xs_file, delimiter=',')
+    num_samples, num_trials = xs.shape
     pool_results, fps, fns = simulate_pool_results(xs, membership_matrix, fpr, fnr)
 
     recovered_xs, recovered_fps, recovered_fns = recover_pool_results(membership_matrix,
@@ -52,11 +52,11 @@ def compare_truth_and_estimates(membership_matrix, xs_file, f, fpr=0, fnr=0, sav
 
     check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, fpr, fnr, f)
 
-    num_errors = (xs != recovered_xs).sum(0)
+    accuracy = 1 - (xs != recovered_xs).sum(0) / num_samples
     num_fp = ((xs == 0) * (recovered_xs == 1)).sum(0)
     num_fn = ((xs == 1) * (recovered_xs == 0)).sum(0)
 
-    info = {"num_errors": num_errors.tolist(),
+    info = {"accuracy": accuracy.tolist(),
             "num_fp": num_fp.tolist(),
             "num_fn": num_fn.tolist()}
 
