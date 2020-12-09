@@ -102,9 +102,9 @@ def test_RS(f, num_trials, fpr=0, fnr=0):
     """
     matrix_file = scipy.io.loadmat('./data/poolingMatrix.mat')
     M = matrix_file['poolingMatrix']
-    return test_M(M, f, fpr, fnr, num_trials)
+    return test_M(M, f, 384, fpr, fnr, num_trials)
 
 
-def test_M(M, f, fpr=0, fnr=0, num_trials=1000):
-    xs_file = './data/n384-f%.4f-numTrials%s.csv' % (f, num_trials)
+def test_M(M, f, n, fpr=0, fnr=0, num_trials=1000):
+    xs_file = './data/n%s-f%.4f-numTrials%s.csv' % (n, f, num_trials)
     return compare_truth_and_estimates(M, xs_file, f, fpr, fnr, saveM=False)
