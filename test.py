@@ -1,5 +1,5 @@
 import numpy as np
-from mip_solver import solve_mip
+from mip_solver import solve_mip, check_error
 from util import check_inputs, simulate_pool_results
 import scipy.io
 
@@ -49,6 +49,28 @@ def compare_truth_and_estimates(membership_matrix, xs_file, f, fpr=0, fnr=0, sav
     recovered_xs, recovered_fps, recovered_fns = recover_pool_results(membership_matrix,
                                                                       pool_results,
                                                                       fpr, fnr, f, test=True)
+    correct_0 = 0  # correct results, erroneous = 0
+    incorrect_0 = 0  # incorrect results, report erroneous = 0
+    correct_1 = 0  # correct results, report erroneous = 1
+    incorrect_1 = 0  # incorrect results, report erroneous = 1
+
+    for trial in range(num_trials):
+        x = xs[:, trial]
+        pool_result = pool_results[:, trial]
+        recovered_x = recovered_xs[:, trial]
+        recovered_fp = recovered_fps[:, trial]
+        recovered_fn = recovered_fns[:, trial]
+
+        erroneous = check_error(membership_matrix, recovered_fp, recovered_fn, recovered_x, pool_result)
+        correct = np.all(x == recovered_x)
+        if correct and erroneous == 0:
+            correct_0 += 1
+        elif not correct and erroneous == 0:
+            incorrect_0 += 1
+        elif correct and erroneous == 1:
+            correct_1 += 1
+        elif not correct and erroneous == 1:
+            incorrect_1 += 1
 
     check_optimality(xs, recovered_xs, fps, recovered_fps, fns, recovered_fns, fpr, fnr, f)
 
@@ -58,7 +80,11 @@ def compare_truth_and_estimates(membership_matrix, xs_file, f, fpr=0, fnr=0, sav
 
     info = {"accuracy": accuracy.tolist(),
             "num_fp": num_fp.tolist(),
-            "num_fn": num_fn.tolist()}
+            "num_fn": num_fn.tolist(),
+            "correct_0": correct_0,
+            "incorrect_0": incorrect_0,
+            "correct_1": correct_1,
+            "incorrect_1": incorrect_1}
 
     if saveM:
         info["membership_matrix"] = membership_matrix.tolist()

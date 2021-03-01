@@ -65,3 +65,23 @@ def solve_mip(membership_matrix, pool_result, fpr, fnr, f, test=False):
     assert np.all(np.sign(membership_matrix @ recovered_x) + recovered_false_p - recovered_false_n == pool_result)
 
     return recovered_x, recovered_false_p, recovered_false_n
+
+
+def check_error(membership_matrix, recovered_false_p, recovered_false_n, recovered_x, pool_result):
+    """
+    Check whether we might've made an error in the recovered x.
+    :param membership_matrix: a numpy array, shape (num_pools * num_samples)
+    :param recovered_x: recovered infection vector
+    :param pool_result: observed pool results
+    :return: whether the recovered_x might be erroneous; 0 means not erroneous, 1 means might be erroneous
+    """
+    erroneous = 0
+
+    for i in range(len(recovered_x)):
+        if recovered_x[i] == 0:
+            new_x = np.copy(recovered_x)
+            new_x[i] = 1
+        if np.all(np.sign(membership_matrix @ recovered_x) + recovered_false_p - recovered_false_n == pool_result):
+            erroneous = 1
+
+    return erroneous
